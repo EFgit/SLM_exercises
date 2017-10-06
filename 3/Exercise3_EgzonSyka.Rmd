@@ -1,0 +1,162 @@
+---
+title: "Exercise 3"
+output:
+  pdf_document: default
+---
+
+#Question 1
+Create a function called secondMinSquared(x) (where x is a vector) returning the second smallest value squared contained in the vector x. If x is not a vector, return an error message. Explicitly test your implementation with different cases. Test your function with the Mean20.txt data set.
+
+*Answer* 
+
+```{r}
+
+secondMinSquared <- function(x){
+  if(!is.numeric(x) | length(x) <= 1){
+    print('Invalid input: should be a numeric vector of length higher than 1')
+  } else{
+    #different solution to the same problem
+    #m<-which(x==min(x))
+    #x<-x[-m]
+    #second_min <- min(x)
+    #return(second_min^2)
+    
+    return (sort(x,partial=2)[2]^2)
+  }
+}
+
+```
+
+Now we will test our implementation with different cases:
+
+```{r}
+secondMinSquared('') # it should print an error message because it's empty
+```
+
+```{r}
+secondMinSquared(1) # it should also print error message because of length
+```
+
+
+```{r}
+secondMinSquared(c(0)) # can't compute the second minimum because only one element in vector
+```
+
+```{r}
+secondMinSquared(c('a','b'))
+```
+
+
+```{r}
+secondMinSquared(c(1, 2, 1.3, 1.01, 4, 5)) #1.0201
+```
+
+
+>*Test your function with the Mean20.txt data set.*
+
+We load and preprocess the dataset Mean20.txt and then use our function: 
+
+```{r}
+pathToFile <- "~/Desktop/S2017/StatisticalLearning/Exercises/2/Mean20.txt"
+timeDelay <- read.table(pathToFile, header=T, colClasses = c('numeric'))
+ctimeDelay <- na.omit(timeDelay)
+ctimeDelay <- subset(ctimeDelay, ctimeDelay$time>0)
+secondMinSquared(ctimeDelay$time)
+```
+
+
+#Question 2
+Create a function called vecSummary(x) (where x is a vector) returning a vector composed of the mean, median, variance, the minimum, and the maximum value (in that order). Explicitly test your implementation with different cases.
+
+*Answer* We have created the function **vecSummary**, now we will test our implementation with different cases:
+
+```{r}
+vecSummary <- function(x) {
+  if(!is.numeric(x) | length(x) <= 1){
+    print('Invalid input: should be a numeric vector of length higher than 1')
+  } else {
+    x_summary <- c(mean(x),median(x), var(x), min(x), max(x))
+    return (x_summary);
+  }
+}
+
+vecSummary(c(1, 2, 2, 3)) #test with a normal array
+vecSummary(ctimeDelay$time) #we apply it to our dataset of Mean20.txt so we can compare
+vecSummary(1) # invalid input because we cannot compute variance
+vecSummary('') # invalid input it should be a numeric vector
+vecSummary(c('a','b','c')) # invalid input it should be a numeric vector
+```
+
+\pagebreak
+
+#Question 3
+Create a function called **generateSample(n_samples, mean, stdev)** returning *n_samples* values drawn from a Gaussian with mean *mean* and standard deviation *stdev*. 
+Test your implementation with different cases.
+
+*Answer* We have created the function **generateSample(n_samples, mean, stdev)** which uses the *rnorm* function to generate random values with Gaussian distribution and specific values for mean and standard deviation:
+
+```{r}
+generateSample <- function(n_samples, mean, stdev){
+  if(n_samples<=0 | mean<0 | stdev<0){
+    print('Invalid parameters: n_samples, mean or stdev!')
+  }
+  return ( x <- rnorm(n_samples, mean=mean, sd=stdev)) 
+}
+
+```
+
+*Test your implementation with different cases.*
+
+```{r}
+generateSample(0,0,0) #should print error message:Invalid parameters..
+
+l <- generateSample(10,50,2)
+
+print(paste('Expected mean: 50  Actual mean:', mean(l)))
+
+l <- generateSample(10,0,0)
+
+print(paste('Expected mean: 0  Actual mean:', mean(l)))
+
+l <- generateSample(0, 2, 1) # invalid parameter: n_samples should be greater than 0
+```
+
+\pagebreak
+
+#Question 4
+Generate 20 samples of values with the function **generateSample** from the preceding question with *mean = 2* and *stdev = 1.5*. For each sample, apply a **t-test** to test if the population *mean = 1.5*. As you know the real population mean, does the test always return the correct answer? Regroup all the 20 sample into one big sample and apply the t-test. What is your conclusion?
+
+*Answer*
+
+```{r}
+sample <- 0
+big_sample <- 0
+p_value <- numeric(20)
+
+for(i in 1:20){
+  sample <- generateSample(n_samples=20, mean=2.0, stdev=1.5)
+  big_sample <- c(big_sample, sample);
+  
+  t_test <- t.test(sample, mu=1.5, alternative = 'greater', conf.int=0.95)
+  p_value[i] <- t_test$p.value
+}
+
+p_value #show p-values for all 20 sets of samples
+
+t_test_bs <- t.test(big_sample, mu=1.5, alternative = 'greater', conf.int=0.95)
+t_test_bs #t-test applied on the big sample formed by grouping all the samples together
+
+```
+>*As you know the real population mean, does the test always return the correct answer?*
+
+No, there are cases when we actually fail to refuse the null hypothesis($H_0:\mu=1.5$) even
+why we know that the real popullation mean should be ~2.0. We can see that from the 
+p-values vector shown above, there are some large p-values(>0.05). 
+ 
+>*Regroup all the 20 sample into one big sample and apply the t-test. What is your conclusion?*
+
+So when we have samples of size 20 which is a relatively small set of samples then the 
+chance of **not detecting the true effect($H_1$ : mean is greater than 1.5)** is larger than for example in case when we group all our samples into a big sample and then apply *t-test*, in which we see that all the time  we *reject* the hypothesis $H_0:\mu=1.5$ and **we have very strong evidence on doing that because the p-value is very small.**
+Our conclusion is that with small sets (like the ones with 20 values) the chance of wrongly accepting the null hypothesis that mean is 1.5 (and not detecting the true effect) is large, so to make a decision we need a bigger set of values and then our confidence is very high that we will make correct decision.
+
+

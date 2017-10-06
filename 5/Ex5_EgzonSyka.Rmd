@@ -1,0 +1,306 @@
+---
+title: "Exercise 5"
+output: 
+  pdf_document: default
+---
+
+#Question 1
+
+```{r}
+edu_data = read.table("Education5.txt", header=T)
+clean_edu_data = edu_data[c('Education','Gender','Wage' )]
+summary(clean_edu_data)
+
+mod <- lm(Wage ~ ., data=clean_edu_data)
+summary(mod)
+```
+
+__*1. Is there a relationship between the response and predictors?*__
+
+We test the null hypothesis: 
+                                $$H_0: \beta_1 = \beta_2 = 0$$
+versus the alternative: $H_a$ : at  least  one $\beta_j$ is non-zero
+                        
+We perform the hypothesis by computing the F-statistic:
+
+```{r}
+l <- anova(mod)
+TSS <- sum(l$`Sum Sq`[1:2])
+RSS <- l$`Sum Sq`[3]
+p <- 2
+n <- nrow(clean_edu_data)
+F_c <- ((TSS-RSS)/p)/(RSS/(n-p-1))
+F_c
+```
+
+The F-statistic which is shown also on the summary of the multiple linear regresion above is 35197(35440) according to our calculation which is far larger than 1, so it provides a compelling evidence agains the null hypothesis $H_0$ (no relationship between the predictors and response). So, it means that there exist a relationship between predictors(Education and Gender) and response(Wage).
+
+__*2. How well does the model fit the data?*__
+
+Now we want to determine which variables are important for the model, because p=2 is small enough we can perform *variable selection* directly by trying out different models, each containing a different subset of the predictors.
+
+We will consider only three models(we will omit the model with no variables): (1) a model containing only Education variable, (2) a model containing only Gender variable, (3) a model containing Gender and Education variable.
+
+```{r}
+mod_1 <- lm(Wage ~ Education, data=clean_edu_data)
+mod_2 <- lm(Wage ~ Gender, data=clean_edu_data)
+mod_3 <- lm(Wage ~ ., data=clean_edu_data)
+
+RSE_1 <- summary(mod_1)$sigma
+RSE_2 <- summary(mod_2)$sigma
+RSE_3 <- summary(mod_3)$sigma
+
+R_sq_1 <- summary(mod_1)$r.squared
+R_sq_2 <- summary(mod_2)$r.squared
+R_sq_3 <- summary(mod_3)$r.squared
+```
+
+We can see that the **model (3)** which uses *Education* and *Gender* variable to predict *Wage* has the largest $R^2$ value so is the best one, $R^2 = 0.9930$ which is very close to 1 and indicates that the model explains a very large portion of the variance in the response variable.
+
+Also if we look at the **RSE** we can clearly see that the model that uses Education and Gender to predict Wage is much more accurate than one that uses only Education (or only Gender).
+
+So, the clear winner is model (3) that uses Education and Gender variable to predict Wage.
+
+
+#Question 2
+
+We remove the variables: **vendor**, **model** and **ERP** which we cannot use to predict **PRP**:
+
+__*Load the Computer data set from the file ComputerData.txt.*__
+
+__*1. Remove the variable that you cannot use to predict performances.*__
+
+```{r}
+
+computerData <- read.table('ComputerData.txt', header = T)
+computerData <- computerData[c("MYCT","MMIN","MMAX","CACH","CGMIN","CHMAX","PRP")]
+
+```
+
+__*2. Try to build the best multiple linear regression model to predict performances, you can use all the variables.*__
+
+Our implementation of *backward variable selection* without using **step** function:
+
+```{r}
+#start with all the descriptors of computer performance in the lm
+summary.lm <- summary(lm(PRP ~ ., data=computerData))
+
+vars <- names(computerData)
+vars <- vars[which(vars != "PRP")]
+
+tol <- 0.01
+
+#while there are still variables with p-values larger than tol
+while(length(which(summary.lm$coefficients[,4] > tol)) != 0){
+  
+  #coefficients table
+  coef <- summary.lm$coefficients
+  
+  #find the variable with the largest p-value
+  var_with_max_p.value <- rownames(coef)[apply(coef,2,which.max)][4] 
+  
+  #remove the variable with the larger value
+  vars <- vars[which(vars != var_with_max_p.value)]
+  
+  #computer the model with the updated variables 
+  lm2 <- lm(computerData$PRP~., data = computerData[vars])
+  summary.lm <- summary(lm2)
+}
+summary.lm
+```
+
+Variable selection using step function:
+
+```{r}
+null_computer.lm <- lm(PRP ~ 1, data=computerData)
+full_computer.lm <- lm(PRP ~ ., data=computerData)
+
+fwd_search <- step(null_computer.lm, scope=list(lower=null_computer.lm,
+                                upper=full_computer.lm),direction="forward", trace=F)
+
+bckwd_search <- step(full_computer.lm, data=computerData, direction="backward", trace = F)
+
+#summary(fwd_search)
+
+summary(bckwd_search)
+```
+
+
+__*4. Explain the strategy you applied.*__
+
+We have used **Backward and Forward selection** for variable selection of the mode
+
+We have computed the *Backward selection* ourselves without using the R *step* function:  we start with all variables in the model and then we remove the variable with largest *p-value*(the least stat. significant), we continue to do so until we have reached the condition that all remaining variables have a p-value below some threshold(e.g $< 0.1$ confidence level 99%) and the same logic would work also for the *forward selection approach*; here we start with *null model* and add it the variable that results in the lowest RSS.
+
+We also have used the **step** function for *variable selection* which uses a different measure to judge the quality of the model: *Akaike information criterion (AIC)*, the logic part is the same as described above, we can clearly see that in the trace of the *forward selection* above (it continuesly adds the variable with the smallest AIC value and stops when the previous step is smaller then the next one). 
+
+*3. Does you model explain something?*
+
+*5. Interpret the important values of the output of the final model you obtained with R.*
+
+The model is: 
+
+> **lm(PRP ~ MYCT + MMIN + MMAX + CACH + CHMAX, data = computerData)**
+
+Our final model includes 5 variables in linear regression model, $R^2 = 0.8648$ value which means that our model explains a large portion of variance in the response variable. 
+Adding the variable that was excluded from the model **CGMIN** leads to just a tiny increase in $R^2$, this is due to the fact that adding another variable to the least squares equations allow us to fit the training data more accurately but it also increases the chance of overfitting and poor prediction performance on the new data.
+
+**F-statistic: 259.7 on 5 and 203 DF,  p-value: < 2.2e-16**, since F-statistic is far larger than 1, and p-value associated with the F-statistic is essentially zero, so we have extremely strong evidence against the null hypothesis $H_0$.
+
+**RSE: 59.86** without CGMIN, **RSE=59.99** with CGMIN, so the model that does not use CGMIN to predict PRP is more accurate.
+
+# Question 3
+
+
+```{r}
+computer.lm.model <- lm(PRP ~ MYCT + MMIN + MMAX + CACH + CHMAX, data = computerData)
+par(mfrow=c(2,2))
+plot(computer.lm.model)
+```
+
+
+__*Is there outliers or predictions that are hard to predict?*__
+
+Yes, in the graph **Residuals vs Fitted** we can see that there are 3 data-points which are very far away from our model, so our model does not capture them, so there are 'outliers' (data points 32,83,200) compared to our model(or extreme values/cases). 
+
+The graph also shows if residuals have non-linear patterns, we see that we have a small degree of non-linearity on our graph but because we don't have any distinct pattern that is a good indication we don’t have non-linear relationships between the predictors and response and that non-linearity degree may be because of non-normalization.
+
+The other two plots (Normal Q-Q and Scale-Location) are not very important for our disscusion.
+
+The fourth plot **Residuals vs Leverage** helps us to find influential cases if any. Not all 'outliers' are influential in linear regression analysis. Even though data have extreme values, they might not be influential to determine a regression line. That means, the results wouldn’t be much different if we either include or exclude them from analysis and that is the case in our data we see that the regression line is not really affected by the extreme values.
+
+\newpage
+
+# Question 4
+
+
+__*Load the Computer data set from the file ComputerData.txt.*__
+
+__*1. Remove the variable that you cannot use to predict performances.*__
+
+```{r}
+
+cars <- read.table('Cars2Data.txt', header = T)
+cars <- cars[-9]
+cars <- na.omit(cars)
+cars$origin <- as.factor(cars$origin)
+summary(cars)
+
+```
+
+
+__*2. Try to build the best multiple linear regression model to predict performances, you can use all the variables.*__
+
+```{r}
+null_cars.lm <- lm(mpg ~ 1, data=cars)
+full_cars.lm <- lm(mpg ~ ., data=cars)
+
+fwd_search <- step(null_cars.lm, scope=list(lower=null_cars.lm,
+                                upper=full_cars.lm),direction="forward", trace=F)
+bckwd_search <- step(full_cars.lm, data=cars, direction="backward", trace = F)
+
+summary(bckwd_search)
+
+#start with all the descriptors of computer performance in the lm
+summary.lm <- summary(lm(mpg ~ ., data=cars))
+
+vars <- names(cars)
+vars <- vars[which(vars != "mpg")]
+tol <- 0.01
+
+#while there are still variables with p-values larger than tol
+while(length(which(summary.lm$coefficients[,4] > tol)) != 0){
+  
+  #coefficients table
+  coef <- summary.lm$coefficients
+  
+  #find the variable with the largest p-value
+  var_with_max_p.value <- rownames(coef)[apply(coef,2,which.max)][4] 
+  
+  #remove the variable with the larger value
+  vars <- vars[which(vars != var_with_max_p.value)]
+  
+  #computer the model with the updated variables 
+  lm2 <- lm(cars$mpg ~ ., data = cars[vars])
+  summary.lm <- summary(lm2)
+}
+summary.lm
+
+```
+
+__*4. Explain the strategy you applied.*__
+
+We have used **Backward and Forward selection** for variable selection of the mode
+
+We have used the **step** function for *variable selection* which uses *Akaike information criterion (AIC)* measure to judge the quality of the model, the logic part is the same and we can clearly see in the trace of the *forward selection* how it continuesly adds the variable with the smallest AIC value and stops when the previous step is smaller then the next one.
+
+The model that we gain with this solution is: 
+
+> *lm(mpg ~ cylinders+displacement+horsepower+weight+year+origin, data = cars)*
+
+When we tried our solution for *forward selection* we got a different solution for the model and actually looking at some parameters it looks that our solution might be better(the reason for this difference might be because of different quality measurements that we use *AIC vs p-value* and also the tolerance that I have used), for example the p-value for 'cylinders' is 0.117742(also 'horsepower' has a large p-value), **F-statistic** is higher in our model(437 vs 256), and we have similar **RSE** (3.337 vs 3.305) and $R^2$ (0.819 vs 0.8239), so it means that our model might be more robust to overfitting.
+
+If we increase the tolerance to 0.05 (95% confidence level) than the model that we gain is:
+
+> *lm(mpg ~ displacement + horsepower + weight +  year + origin, data = cars)*
+
+but again we would have only a tiny increase in $R^2$ value and a drop in F-statistic.
+
+
+The model that we gain with our solution(without using step function) is:
+
+> **lm(mpg ~ weight + year + origin, data = cars)**
+
+and this is the model that we're goint to use for the other part of the question, we also we will plot both of them and we will clearly see that this model actually might be better.
+
+__*3. Does you model explain something?*__
+
+__*5. Interpret the important values of the output of the final model you obtained with R.*__
+
+The model is: 
+
+> **lm(mpg ~ weight +  year + origin, data = cars)**
+
+Our final model includes 3 variables in linear regression model, $R^2$ value is 0.8190 which means that our model explains a large portion of variance in the response variable. 
+Adding the variables that were excluded from the model **acceleration, cylinders, displacement, horsepower** leads to just a tiny increase in $R^2$ value(0.8239), this is due to the fact that adding another variable to the least squares equations allow us to fit the training data more accurately but it also increases the chance of overfitting and poor prediction performance on the new data.
+
+**F-statistic: 437.9 on 4 and 387 DF,  p-value: < 2.2e-16**, since F-statistic is far larger than 1, and p-value associated with the F-statistic is essentially zero, so we have extremely strong evidence against the null hypothesis $H_0$ (F-statistic = 256 in LM model gained with 'step' func)
+
+**RSE = 3.337** a slight increase  compared to that of the LM model of step function(**RSE = 3.305**).
+
+
+
+
+__*Plot your model graphically on a graph with all the data.*__
+
+We will do a comparison between the two models: the one we get using the *step* function and the one we get using our method for *backward selection*.
+
+```{r}
+cars.lm <- lm(mpg ~ cylinders + displacement + horsepower + weight +  year + origin, 
+              data = cars)
+par(mfrow=c(2,2))
+plot(cars.lm)
+title("LM model with step", line = -15, outer=TRUE)
+
+cars_lm2 <- lm(mpg ~ weight + year + origin, data = cars)
+par(mfrow=c(2,2))
+plot(cars_lm2)
+title("LM model with our method", line = -15, outer=TRUE)
+
+```
+
+
+\newpage
+
+__*Is there outliers or predictions that are hard to predict?*__
+
+Yes, in the graph **Residuals vs Fitted** we can see that there are 2 data-points which are far away from our model, so our model does not capture them, so we would say that there are some extreme values (data points 323, 327) compared to our model that are hard to predict. 
+
+
+The graph also shows that we have a small degree of non-linearity on our model but because we don't have any distinct patterns that is a good indication we don’t have non-linear relationships between the predictors and response; that small non-linearity degree may be because of non-normalization.
+
+The other two plots (**Normal Q-Q and Scale-Location**) are not very important for our disscusion.
+
+The fourth plot **Residuals vs Leverage** helps us to find influential cases if any in our model. Even though data have extreme values, they might not be influential to determine a regression line. 
+
+*This is the graph that shows a very meaningful difference between the two models*, we can see that in the plot of the **LM model gained by the step** function the datapoint 14 influences our regression line and also the pattern is somewhat strange with all the points clustered, but in the plot of the **LM model gained with our method** we don't have any real influential cases which proves the point that our model is more robust. 

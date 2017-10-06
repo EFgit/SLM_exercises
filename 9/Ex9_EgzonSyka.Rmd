@@ -1,0 +1,300 @@
+i
+---
+title: "Exercise 9"
+subtitle: Egzon Syka and Labinot Jakupi
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+#1.
+
+First we load the data and show a summary of it:
+
+```{r}
+library(boot)
+
+data <- read.table("DataHeart.txt", header=T)
+
+summary(data)
+```
+
+
+Then we see that there are some invalid data(like the age 3 when it's supposed to be in range 20-80) we need to remove them, then we also see that there are some categorical values that we know from the description of the data, we must convert them to factor:
+
+```{r}
+data <- data[-1]
+data <- data[which(data$age >= 20),]
+#data <- data[which(data$gramstein > 6),]
+
+## will use this just for correleation - non numeric data needed
+temp <- data
+
+## change categorical data to factor
+data$sex <- as.factor(data$sex)
+data$pain <- as.factor(data$pain)
+data$disease <- as.factor(data$disease)
+data$electro <- as.factor(data$electro)
+data$vessels <- as.factor(data$vessels)
+data$thal <- as.factor(data$thal)
+data$sugar <- as.factor(data$sugar)
+
+summary(data)
+```
+
+We try to check the pairwise corelation table between variables(features):
+
+```{r}
+## trying to find which values are not so important - to reduce overfitting(noise)
+
+# cor(temp)
+
+```
+
+we notice that there is some corelation between the **peak** and **slope** variables for example.
+Now, we will just try to ilustrate the effect of for example of *sex* variable on *disease*:
+
+```{r}
+heart = data
+levels(heart$disease) = c("No disease","Disease")
+levels(heart$sex) = c("female","male","")
+mosaicplot(heart$sex ~ heart$disease,
+           main="Fate by Sex", shade=FALSE,color=TRUE,
+           xlab="Gender", ylab="Heart disease")
+```
+
+we clearly see from the graph above that there is more risk for mens to get heart disease.
+
+Same we can also do for the age:
+
+```{r}
+boxplot(heart$age ~ heart$disease,
+        main="Fate by Age",
+         ylab="Age",xlab="Heart disease")
+
+```
+
+Now, we start building different models, here we start with a logistic regression using the complete dataset(except ID var.) and then we remove the *slope* and *gramstein* since them don't contribute much and slope is also correlated to *peak* variable:
+
+```{r}
+set.seed(7)
+## building models - logistic
+
+#model full set
+logistic.mod <- glm( disease~., data, family =binomial )
+cv.error <- cv.glm(data, logistic.mod, K=10)$delta[1]
+
+# remove slope because covariance with peak is high
+newData <- subset(data, select=-c(slope, gramstein)) 
+
+#model without slope and gramstein
+logistic.mod1 <- glm( disease~., newData, family = binomial )
+cv.error1 <- cv.glm(newData, logistic.mod1)$delta[1]
+
+```
+
+
+
+We normalize the data in order to see if normalization can increase the accuracy:
+
+
+```{r}
+set.seed(7)
+
+## trying with scaled data
+
+numdata <- read.table("DataHeart.txt", header=T)
+numdata <- numdata[-1]
+numdata <- numdata[which(numdata$age >= 20),]
+numdata <- numdata[which(numdata$gramstein > 6),]
+disease <- as.factor(numdata$disease)
+
+sData <- as.data.frame(scale(subset(numdata, select = - disease)))
+sData <- cbind(sData, disease)
+
+logistic.mod2 <- glm( disease ~ sex + pain + pres + electro + rate + angina + 
+    peak + vessels + thal, data = sData, family=binomial)
+cv.error2 <- cv.glm(sData, logistic.mod2, K=10)$delta[1]
+
+newData <- subset(sData, select=-c(slope, gramstein)) 
+
+logistic.mod3 <- glm( disease~., newData, family = binomial )
+cv.error3 <- cv.glm(sData, logistic.mod3)$delta[1]
+```
+
+it appears that it doesn't matter a lot, but we noticed is that the model where we exclude some variables like *sugar*, *cholesterol*, *slope*, *gramstein*,*fiss*,*blst* it performs better than the other models.
+
+So, let's try to check the importance of variables by using the *summary* function and checking for variables that have lowest *p-values*:
+
+```{r}
+summary(logistic.mod)
+```
+
+
+Now let's experiment with different variables:
+
+
+```{r}
+set.seed(10)
+
+logistic.mod4 <- glm(disease ~ thal + vessels + pain + sex + pres + peak + slope + angina + rate + age, data, family = binomial)
+cv.error4 <- cv.glm(data, logistic.mod4, K=10)$delta[1]
+
+logistic.mod5 <- glm(disease ~ thal + pain + vessels + rate + peak + angina + sex + age + slope + blst, data = data, family=binomial)
+cv.error5 <- cv.glm(data, logistic.mod5, K=10)$delta[1]
+
+```
+
+
+
+We use **mlbench** and **caret** libraries to measure the importance of variables(within LDA model):
+
+
+```{r}
+set.seed(7)
+# load the library
+library(mlbench)
+library(caret)
+# prepare training scheme
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model <- train(disease~., data=data, method="lda", preProcess="scale", trControl=control)
+# estimate variable importance
+importance <- varImp(model, scale=TRUE)
+# summarize importance
+print(importance)
+# plot importance
+plot(importance)
+```
+
+We want to select features that have at least 40% importancem but we can clearly see that *LDA* doesn't do a better job than *glm*:
+
+```{r}
+## LDA model
+set.seed(7)
+library(MASS)
+
+heart <- subset(data, select = -c(fiss, gramstein, sugar, blst, cholesterol, electro))
+
+lda.mod <- lda(disease ~ ., heart, CV=T)
+cat("\nLDA Test Error rate = ", mean(lda.mod$class != heart$disease))
+
+lda.mod1 <- lda(disease ~ ., newData, CV=T)
+cat("\nLDA Test Error rate = ", mean(lda.mod1$class != newData$disease))
+
+```
+
+We also tried to use randomForest to check the accuracy that we could get and with how many 
+variables we get the best result(it seems that with 8 variables we get the best):
+
+
+```{r}
+set.seed(7)
+# load the library
+library(mlbench)
+library(caret)
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+# run the RFE algorithm
+results <- rfe(data[-17], data$disease, sizes=c(1:16), rfeControl=control)
+# summarize the results
+print(results)
+# list the chosen features
+predictors(results)
+# plot the results
+plot(results, type=c("g", "o"))
+```
+
+
+
+We also tried the **SVM** model with different kernels (polynomial, linear and rbf) but the results weren't promising compared to those of glm: 
+
+
+```{r}
+## trying with svm, with differnet kernels - but until now logistic regression is the best
+
+library(e1071)
+set.seed(7)
+tune.out <- tune(svm, disease~., data = data, kernel = 'polynomial', 
+                 ranges=list(cost=c(0.0001,0.001,0.01,0.1,1,5,10), degree=c(2,3,4,5)))
+summary(tune.out)
+
+
+tune.out1 <- tune(svm, disease~thal + pain + vessels + rate + peak + angina + sex + age + slope, data = data, kernel = 'linear', 
+                 ranges=list(cost=c(0.00001,0.0001,0.001,0.01,0.1,1,5,10)))
+#summary(tune.out1)
+
+```
+
+
+
+We also give a try to a deep learning model(neural network) with 6 hidden layers with 10 nodes in each of them but the overall prediction accuracy was the same:
+
+```{r}
+
+inTraining <- createDataPartition(data$disease, p = 0.70, list = FALSE)
+training <- data[ inTraining, ]
+testing  <- data[-inTraining, ]
+
+require(h2o);
+
+h2o.no_progress()
+localH2O <-h2o.init()
+heart.train <- as.h2o(training)
+heart.test <- as.h2o(testing)
+model <- h2o.deeplearning( x = setdiff(colnames(heart.train),c("disease")), 
+                           y = 'disease', 
+                           training_frame = heart.train,
+                           activation = "RectifierWithDropout",
+                           hidden = c(10, 10, 10, 10, 10, 10),
+                           epochs = 100000 )
+predictions <- h2o.predict(model, heart.test)
+
+suppressMessages(require(ROCR, quietly = T))
+preds <- as.data.frame(predictions)
+labels <- as.data.frame(heart.test$disease)
+
+confusionMatrix(preds$predict, testing$disease)
+```
+
+#2.
+
+```{r}
+set.seed(97)
+#calculating the cost of wrong prediction
+library(caret)
+
+inTraining <- createDataPartition(data$disease, p = 0.7, list = FALSE)
+training <- data[ inTraining, ]
+testing  <- data[-inTraining, ]
+
+
+model <- glm(disease ~ thal + vessels + pain + sex + pres + peak + slope + angina + rate 
+                 + age, training, family = binomial)
+
+predictions <- predict(model, testing)
+
+fitpredt <- function(t) ifelse(predictions > t , 2, 1)
+
+confMatrix <- confusionMatrix(fitpredt(0.76), testing$disease)
+
+confMatrix
+
+false_absent <- confMatrix$table[1,2] #predicting absent when it's present, cost = 3
+
+false_present <- confMatrix$table[2,1] #predicting present when it's absent, cost = 1
+
+accuracy_on_false_absent <- false_absent / (confMatrix$table[1,1] + false_absent) #18 percent accuracy
+
+accuracy_on_false_present <- false_present / (confMatrix$table[2,2] + false_present) # 12 percent
+
+cost_of_misclassification <- false_absent * 3 + false_present
+
+```
+
+
+So our model predicts 'absent' when the disease is 'present' in 18% of cases and predicts 'present' when it's 'absent' in 12% of cases.
+
+The deep learning model predicts 'absent' when the disease is 'present' in 13% of cases and predicts 'present' when it is 'absent' in 14% of cases.
+
+So in this aspect that model is better because it minimizes the risk of not detecting the presence of disease.

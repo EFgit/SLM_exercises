@@ -1,0 +1,193 @@
+---
+title: "Exercise 1"
+output:
+  pdf_document: default
+  html_exercise1: default
+---
+
+**1 .**	For	each	of	the	variable,	compute	the	mean,	the	median,	the	standard deviation,	the	minimum	and	maximum	value.
+
+*Answer* Let's first load the data:
+
+
+```{r}
+varTypes <- c('numeric','numeric','factor','numeric','character')
+mydata = read.table('~/Documents/Education.txt',sep="\t",colClasses =varTypes,header=T)
+```
+
+Then we run the function *summary* on our data which contains many different function on itself and might help us to detect anomalies on our data:
+
+```{r}
+summary(mydata)
+```
+
+Immediately *we detect some anomalies on our data*, like **for example**. there is a person with -12 years education and we know that there shouldn't be negative values on *Education* attribute, also in the *Gender* attribute (1=male,2=female) there is a person with gender 20 etc.
+
+So, we need to clean the data a bit before we apply our functions required by the exercise:
+
+```{r}
+cleanedData<-droplevels(mydata[which(mydata$Gender==1 | mydata$Gender==2),])
+cleanedData<-cleanedData[which(cleanedData$Education>0 & cleanedData$Wage>=1000),]
+summary(cleanedData)
+```
+
+
+Now, we procede to compute mean,median,max,min and standard deviation for variables, we see that most of them are already given by the summary function but anyway we will do it explicitly, we also see that for some variables it doesn't make sense to compute some of these functions, like for ID, Gender, Country.
+
+\newpage
+
+**Education variable:**
+
+```{r}
+mean(cleanedData$Education)
+median(cleanedData$Education)
+sd(cleanedData$Education)
+min(cleanedData$Education)
+max(cleanedData$Education)
+```
+
+&nbsp;
+&nbsp;
+
+**Wage variable:**
+
+```{r}
+mean(cleanedData$Wage)
+median(cleanedData$Wage)
+sd(cleanedData$Wage)
+min(cleanedData$Wage)
+max(cleanedData$Wage)
+```
+
+&nbsp;
+&nbsp;
+
+**Gender variable:** I will compute the mean for Gender just in case if we want to know the male/female ratio, because it can be helpful to analysis.
+
+```{r}
+mean(as.numeric(cleanedData$Gender))
+```
+
+\newpage
+
+**2 .**	Select the	variables according	to	the	underlying	country.	For	each	country, compute	the	mean,	the	median,	the	standard	deviation,	the	minimum	and	maximum	value. 
+Do	you	see	some	differences	between	the	countries?
+
+*Answer* First, we split our data based on country:
+
+```{r}
+us_data = cleanedData[which(cleanedData$Country=='US'),]
+canada_data = cleanedData[which(cleanedData$Country=='Canada'),]
+```
+
+Now, to calculate the required functions I will just use the *summary()* function of R instead of doing it explicitly for each variable(and just add the mean for Gender variable and standard deviation for Wage and Education variables):
+
+
+**US-summary:**
+
+```{r, tidy=TRUE}
+summary(us_data)
+```
+
+
+**Canada-summary:**
+
+```{r}
+summary(canada_data)
+```
+
+\newpage
+
+**Gender variable(mean):**
+
+Canada male/female ratio:
+
+```{r}
+mean(as.numeric(canada_data$Gender))
+```
+
+US male/female ratio:
+
+```{r}
+mean(as.numeric(us_data$Gender))
+```
+
+&nbsp;
+&nbsp;
+
+
+**Standard deviation(US,Canada):**
+
+```{r}
+sd(canada_data$Education)
+sd(us_data$Education)
+sd(canada_data$Wage)
+sd(us_data$Wage)
+```
+
+&nbsp;
+&nbsp;
+
+Yes, we can see that in our dataset there are more people from US, and that the ratio male/female in both countries is almost the same, also we can see that the **mean of wages** is actually a bit higher in Canada but also the **mean of education years** is also higher in Canada. Also from the standard deviation we can infer that there is more variability on Education data for people that are from Canada compared to that of US.   
+
+If we want to choose the **"best" number**(person) to represent our data, than we should choose it in relation to some *error metric*, such that to minimize the error as much as possible, if we choose the *absolute error metric(L1 error)* then the best number to choose is the **median**. Similarly, the **mean** minimizes squared error(that's why it's more affected by outliers than the median).
+
+
+\newpage
+
+**3 .**		(Ignore	the	difference	between	the	countries).	What	do	you	think /	infer from all	these	variables	when	the	main	focus	is	to	predict	the	value	of	the	variable Wage? 		
+
+
+*Answer*  We can see that there is some direct relation between the **Education** and **Wage** variables, possibly also the **Gender** but for now let's disscuss only the relation between the first two.
+
+```{r}
+plot(cleanedData$Education,cleanedData$Wage,xlab="Education years",
+     main="Education/Wage relation",ylab="Wage", pch=20, col='magenta')
+```
+
+So, the relation between years of education and wage is that *the higher the education is, the higher the wage* of the person will be(in general case).
+
+\newpage
+
+**4 .**		As the variable	Gender is	a	categorical ( binary data), select the wage	and education	values corresponding to each of the two possible gender values.
+Compute	the	mean,	the	median, the	standard deviation, the	minimum	and	maximum	value	for	each	gender separately.	What can you infer from these	values?
+
+*Answer*  Let's first select the Wage and Education attributes by genders:
+
+```{r}
+male_education <- cleanedData$Education[which(cleanedData$Gender==1)]
+male_wage <- cleanedData$Wage[which(cleanedData$Gender==1)]
+female_education<- cleanedData$Education[which(cleanedData$Gender==2)]
+female_wage <- cleanedData$Wage[which(cleanedData$Gender==2)]
+```
+
+**Male data summary:**
+
+```{r}
+summary(male_education)
+summary(female_education)
+summary(male_wage)
+summary(female_wage)
+```
+
+
+**Standard deviation(male,female):**
+
+```{r}
+sd(male_education)
+sd(male_wage)
+sd(female_education)
+sd(female_wage)
+```
+
+
+```{r}
+plot(male_education,male_wage,xlab="Education years",ylab="Wage", main="Education/Wage relation", pch=20, col="blue")
+points(female_education,female_wage,col='red1',pch=20)
+legend("topleft", legend=c("Female", "Male"),
+       col=c("red", "blue"), lty=points(1,2), cex = 0.8, pch=20)
+```
+
+
+We can see that there exists *a pay gap between genders*, male always get paid more for the same education. That we can see from the summary tables(mean and median are higher), but also in the graph we can clearly see the difference in wages for the same education years.
+

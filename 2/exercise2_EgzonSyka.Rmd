@@ -1,0 +1,156 @@
+---
+title: "Exercise 2"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+**Question 1.** Download the car seats data set from the ILIAS website (Carseats.txt). Using
+the plot() function, show graphically the possible relationship between the dependent variable Sales and the independent variable Price. 
+Can you change the title of the plot as well as the labels appearing in the two axes? It seems that there is an outlier, can you highlight it in red?
+
+*Answer* First we will load the data(we did not select immediately the columns of Sales and Price, because as we will see there are some anomalies on other columns and in that way we would not be able to detect them at all):
+
+
+```{r}
+pathToFile<- "~/Desktop/S2017/StatisticalLearning/Exercises/2/Carseats.txt"
+mydata <- read.table(pathToFile, header=T)
+```
+
+
+We look at the summary of our data:
+
+
+```{r}
+summary(mydata);
+```
+
+&nbsp;
+
+Then we clean the data a bit because there are some data with negative values in Education and Age attributes:
+&nbsp;
+&nbsp;
+
+```{r}
+mydata <- mydata[-which(mydata$Education<0),]
+mydata <- mydata[-which(mydata$Age<0),]
+mydata <- mydata[,c("Sales", "Price")]
+```
+
+
+Now we can show graphically the relationship between Sales variable and Price variable:
+
+
+```{r}
+outlier <- mydata[which(mydata$Sales>20),]
+plot(mydata$Sales, mydata$Price,main = "Sales / Price relationship", 
+     xlab = "Sales", ylab = "Price")
+points(outlier$Sales, outlier$Price, pch = 20, col = "red")
+```
+
+
+**Question 2.** Download the education data set from the ILIAS website (Education.txt). As
+the variable Country is a factor (categorical), select the wage and education values corresponding to each of the two possible country values. Show graphically the possible relationship between the independent variable Education and the dependent variable Wage but only when considering the observations corresponding to the USA and to the Canada. Can you plot on the same graphics the information for the US and for the Canada but with different colors? Can you add a legend with the corresponding colors?
+
+&nbsp;
+
+*Answer* We load the data and then select only the columns that we need from the table, which are Education, Wage and Country:
+
+```{r}
+pathToEdu<- "~/Desktop/S2017/StatisticalLearning/Exercises/2/Education.txt"
+varTypes <- c('numeric','numeric','factor','numeric','factor')
+eduData = read.table(pathToEdu, sep="\t", colClasses = varTypes, header=T)
+eduData = eduData[,c('Education','Wage','Country')]
+summary(eduData)
+```
+
+Then we split the data based on corresponding Country:
+
+
+```{r}
+us_data = eduData[which(eduData$Country=='US'),]
+ca_data = eduData[which(eduData$Country=='Canada'),]
+```
+
+We plot the data using the plot() and points() functions and we add a legend with the corresponding colors for each country:
+
+
+```{r}
+plot(us_data$Education,us_data$Wage,xlab="Education years",ylab="Wage",
+     main="Education/Wage relation", pch=20, col="blue")
+points(ca_data$Education,ca_data$Wage,col='red1',pch=20)
+legend("topleft", legend=c("Canada", "US"), col=c("red", "blue"),
+       lty=points(1,2), cex = 0.8, pch=20)
+```
+
+&nbsp;
+
+**Question 3.** Download from the ILIAS website the Mean20 data set (filename: Mean20.txt).
+This data set is composed by a single variable (time), the time delay in minutes between two calls in an info-center.
+Compute the mean, the median, the standard deviation, the minimum and maximum value of the variable time. Is there any outliers and possible invalid samples? Do you need to preprocess this list?
+
+&nbsp;
+
+*Answer*  Yes we need to preprocess, because after we load the data we can see that there are some NA values on the data, and some negative values on time delay, which don't make sense:
+
+
+```{r}
+pathToFile <- "~/Desktop/S2017/StatisticalLearning/Exercises/2/Mean20.txt"
+timeDelay <- read.table(pathToFile, header=T, colClasses = c('numeric'))
+summary(timeDelay)
+```
+
+&nbsp;
+
+We remove the NA values from our data, and also we remove data that contain negative time delay:
+
+```{r}
+ctimeDelay <- na.omit(timeDelay)
+ctimeDelay <- subset(ctimeDelay, ctimeDelay$time>0)
+summary(ctimeDelay)
+sd(ctimeDelay$time)
+```
+
+&nbsp;
+
+**Question 4.** We suppose that the mean delay between two calls is 7.05 minutes. Can you test this hypothesis with the data available? What is your conclusion? Do you see a difference when considering the original values and the preprocessed values?
+
+&nbsp;
+
+*Answer*  We already have the preprocessed data needed to test this hypothesis:
+
+```{r}
+ttest <- t.test(ctimeDelay, alternative = 'two.sided', mu=7.05, conf.int = 0.95)
+ttest
+```
+
+&nbsp;
+
+From the *p-value* (which is << 0.05) we can conclude that there is strong evidence against null hypothesis $H_0$, *so we can reject it*. Our null hypothesis is that the mean delay is 7.05 minutes, for which we say that it's incorrect.
+
+\pagebreak
+
+Let's consider the *t-test* on the original values and compare the result with that of preprocessed data:
+
+```{r}
+ttest_unclean <- t.test(timeDelay, alternative = 'two.sided', mu=7.05, conf.int = 0.95)
+ttest_unclean
+```
+
+When we consider the t-test on the original values then we have a completely different result, now *we fail to reject the null hypothesis $H_0:\mu=7.05$* (p-value=0.3006>0.05).
+
+&nbsp;
+
+**Question 5.** For John, the average delay is greater than 7.05. Thus the only credible alternative hypothesis must take account of this fact. How can you test John’s hypothesis?
+
+*Answer*  We can test John's hypothesis by doing a one-sided t-test on our preprocessed data with alternative option set to 'greater':
+
+```{r}
+ttest <- t.test(ctimeDelay, alternative = 'greater', mu=7.05, conf.int = 0.95)
+ttest
+```
+
+
+In the case of a one-sided alternative, the sign of the t-statistic matters A LOT.  A negative sign implies that the sample mean is less than the hypothesized mean.  This would be evidence against the null hypothesis IF (and only if) the alternative was that the true mean is LESS than the hypothesized value.
+
+In this case, the **t-statistic is negative(t=-2.4992)**, that is NOT evidence against the null in favor of the alternative. So, *we fail to reject the null hypothesis $H_0:\mu=7.05$*(p-value=0.9891>>0.05 and sign of t-statistic is negative), so John's hypothesis that the average delay is greater than 7.05 is wrong.

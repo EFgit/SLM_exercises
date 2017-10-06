@@ -1,0 +1,118 @@
+---
+title: "Exercise 8"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+# Question 1
+
+###1.
+
+```{r}
+library(boot)
+
+carsData <- read.table('Cars2Data.txt', header = T)
+carsData <- na.omit(carsData)
+
+set.seed(13)
+
+cars.mod <- glm(mpg ~ weight + year + origin, data = carsData)
+
+cars.mod1 <- glm(mpg ~ weight + year + origin + horsepower, data = carsData)
+
+cars.poly <- glm(mpg ~ poly(weight + year + origin, 2), data=carsData)
+
+```
+###2.
+
+```{r}
+set.seed(13)
+cv1 <- cv.glm(carsData, cars.mod, K=10)
+cv2 <- cv.glm(carsData, cars.mod1, K=10)
+
+cv.error <- cv.glm(carsData, cars.mod, K=10)$delta[1]
+cv1.error <- cv.glm(carsData, cars.mod1, K=10)$delta[1]
+cvp.error <- cv.glm(carsData, cars.poly, K=10)$delta[1]
+
+cat("Model 1 cv.error =", cv.error, "\n")
+cat("Model 2 cv.error = ", cv1.error, "\n")
+cat("Model poly cv.error = ", cvp.error, "\n")
+```
+
+\newpage
+
+# Question 2
+
+###1.
+
+```{r}
+library(boot)
+set.seed(3)
+cancerData <- read.table('Cancer.txt', header = T)
+cancerData <- cancerData[c('Diagnostic','Texture','Perimeter','Symmetry','Smooth')]
+cancer.mod <- glm(Diagnostic ~ ., data = cancerData, family = binomial)
+summary(cancer.mod)
+```
+
+Coefficient estimates are statistically different from 0 because **Pr(>|z|)** are very small(<<0.05).
+
+The iterative computation was done after 8 iterations.
+
+###2. 
+
+```{r}
+cv.error <- cv.glm(cancerData, cancer.mod, K=10)$delta[1]
+cat("Error rate(test error) =", cv.error)
+```
+
+\newpage
+
+# Question 3
+
+###1.
+
+```{r}
+library(boot)
+set.seed(13)
+vertebralData <- read.table('VertebralData.2C.txt', sep = ",", header=T)
+
+cor(vertebralData[-7])
+
+vertebral.mod <- glm(Status ~ Incidence + Radius + Tilt + Angle, data=vertebralData, family=binomial)
+```
+
+*Logistic regression is unstable when the classes are well seperated*
+So if we include all the variables we will get an error (**glm.fit: fitted probabilities numerically 0 or 1 occurred**) which I think is an over-fitting problem: too many variables in our model, leading to a perfect separation of the cases.
+
+So, we tried to exclude the correlated variables, by finding pairs of predictors that are correlated.
+
+###2.
+
+```{r}
+library(MASS)
+set.seed(13)
+vertebral.lda.mod <- lda(Status ~ Incidence + Radius + Tilt + Angle, data=vertebralData)
+vertebral.lda.mod
+```
+
+
+###3. To compare the two models we will compute test error rate (LOOCV) for both models:
+
+
+```{r}
+library(MASS)
+set.seed(13)
+#CV=T then it performs LOOCV
+vertebral.lda.mod <- lda(Status ~ Incidence + Radius + Tilt + Angle, data=vertebralData, CV=T)
+cat("\nLDA Test Error rate = ", mean(vertebral.lda.mod$class != vertebralData$Status))
+
+#if we don't specify K then by default is K=n - LOOCV
+cv.error <- cv.glm(vertebralData, vertebral.mod)$delta[1]
+cat("\nLogistic reg. Test Error rate =", cv.error,"\n")
+```
+
+So, we see that even why the two models LDA and Logistic regression are very similar and we expect that they accuracy will be also very similar sometimes this is not the case.
+LDA assumes that the observations are drawn from a Gaussian distribution with a common covariance matrix in each class and can provide improvements over Logistic regression when that assumption holds, but it also will be outperformed when the assumption does not hold.
+
